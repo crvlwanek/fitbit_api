@@ -25,6 +25,7 @@ class API:
             "redirect_uri": Fitbit.redirect_uri, "scope": " ".join(Fitbit.scope)
         }).prepare()
         pyperclip.copy(req.url)
+        print(f"Visit the following url to get your auth code: {req.url}")
         
     @staticmethod
     def encoded_client() -> str:
@@ -66,6 +67,8 @@ class API:
         """
         headers = { "Authorization": f"Bearer {self.access_token}" }
         res = http_method(f"{API.base_url}{url}",headers=headers,params=params)
+        if self.debug: 
+          return res
         return json.loads(res.text)
     
     def __get(self, url: str, params: dict = {}) -> dict:
@@ -769,6 +772,17 @@ class API:
       https://dev.fitbit.com/build/reference/web-api/food-logging/#food-or-water-time-series
     """
     def food_or_water_time_series(self, base_date: str, end_or_period: str, resource_path: str = "caloriesIn"):
+        """
+        Updates a user's daily activity goals and returns a response using units in the unit system which corresponds 
+        to the Accept-Language header provided.
+
+        Parameters: 
+          base_date: If an end date is provided, base_date refers to the start date. If a period is
+            provided instead, base_date will be the last date of that period
+          end_or_period: A date in the format yyyy-MM-dd or one of the following periods:
+            1d, 7d, 30d, 1w, 1m, 3m, 6m, 1y, or max
+          resource_path: (optional) caloriesIn, water
+        """
         return self.__get(f"/1/user/{self.user_id}/foods/log/{resource_path}/date/{base_date}/{end_or_period}.json")
 
     """
@@ -778,21 +792,45 @@ class API:
       https://dev.fitbit.com/build/reference/web-api/friends/
     """
     def friends(self):
-        return self.__get(f"/1.1/user/{self.user_id}/friends.json")
+      """
+      Returns data of a user's friends in the format requested using units in the unit system which 
+      corresponds to the Accept-Language header provided.
+      """
+      return self.__get(f"/1.1/user/{self.user_id}/friends.json")
 
     def friends_leaderboard(self):
-        return self.__get(f"/1.1/user/{self.user_id}/leaderboard/friends.json")
+      """
+      Returns data of a user's friends in the format requested using units in the unit system which 
+      corresponds to the Accept-Language header provided.
+      """
+      return self.__get(f"/1.1/user/{self.user_id}/leaderboard/friends.json")
 
     def friend_invitations(self):
-        return self.__get(f"/1.1/user/{self.user_id}/friends/invitations.json")
+      """Returns a list of invitations to become friends with a user in the format requested."""
+      return self.__get(f"/1.1/user/{self.user_id}/friends/invitations.json")
 
     def invite_friends(self, user_id: str, id_type: str):
-        return self.__post(f"/1.1/user/{self.user_id}/friends/invitations",
-            params={f"invitedUser{id_type.capitalize()}": user_id})
+      """
+      Creates an invitation to become friends with the authorized user. Either invitedUserEmail 
+      or invitedUserId needs to be provided.
+
+      Parameters:
+        user_id: Email or encoded id of the user to invite
+        id_type: email or id
+      """
+      return self.__post(f"/1.1/user/{self.user_id}/friends/invitations",
+          params={f"invitedUser{id_type.capitalize()}": user_id})
 
     def friend_invitation(self, from_user_id: str, accept: str):
-        return self.__post(f"/1.1/user/{self.user_id}/friends/invitations/{from_user_id}",
-            params={"accept": accept})
+      """
+      Accepts or rejects an invitation to become friends wit inviting user.
+      
+      Parameters:
+        from_user_id: The encoded ID of a user from which to accept or reject invitation.
+        accept: Accept or reject invitation; true or false.
+      """
+      return self.__post(f"/1.1/user/{self.user_id}/friends/invitations/{from_user_id}",
+          params={"accept": accept})
 
     """
     Heart Rate Intraday Time Series
@@ -801,11 +839,25 @@ class API:
       https://dev.fitbit.com/build/reference/web-api/heart-rate/#get-heart-rate-intraday-time-series
     """
     def heart_rate_intraday(self, base_date: str, end_or_1d: str, detail_level: str, start_time: str = None, end_time: str = None):
-        if start_time is not None and end_time is not None:
-            time = f"/time/{start_time}/{end_time}"
-        else:
-            time = ""
-        return self.__get(f"/1/user/{self.user_id}/activities/heart/date/{base_date}/{end_or_1d}/{detail_level}{time}.json")
+      """
+      Returns the intraday time series for a given resource in the format requested. If your application has the 
+      appropriate access, your calls to a time series endpoint for a specific day (by using start and end dates 
+      on the same day or a period of 1d), the response will include extended intraday values with a one-minute 
+      detail level for that day. Unlike other time series calls that allow fetching data of other users, intraday 
+      data is available only for and to the authorized user.
+
+      Parameters:
+        base_date: The date in the format of yyyy-MM-dd or today.
+        end_or_1d: The end date in the format of yyyy-MM-dd or 1d for a 1 day time period
+        detail_level: The number of data points to include either 1sec or 1min.
+        start_time: (optional) The start of the period in the format of HH:mm.
+        end_time: (optional) The end time of the period in the format of HH:mm.
+      """
+      if start_time is not None and end_time is not None:
+          time = f"/time/{start_time}/{end_time}"
+      else:
+          time = ""
+      return self.__get(f"/1/user/{self.user_id}/activities/heart/date/{base_date}/{end_or_1d}/{detail_level}{time}.json")
 
     """
     Heart Rate Time Series
@@ -814,7 +866,17 @@ class API:
       https://dev.fitbit.com/build/reference/web-api/heart-rate/#heart-rate-time-series
     """
     def heart_rate_time_series(self, base_date: str, end_or_period: str):
-        return self.__get(f"/1/user/{self.user_id}/activities/heart/date/{base_date}/{end_or_period}.json")
+      """
+      Returns the time series data in the specified range for a given resource in the format requested 
+      using units in the unit systems that corresponds to the Accept-Language header provided.
+
+      Parameters: 
+        base_date: If an end date is provided, base_date refers to the start date. If a period is
+          provided instead, base_date will be the last date of that period
+        end_or_period: A date in the format yyyy-MM-dd or one of the following periods:
+          1d, 7d, 30d, 1w, 1m, 3m, 6m, 1y, or max
+      """
+      return self.__get(f"/1/user/{self.user_id}/activities/heart/date/{base_date}/{end_or_period}.json")
 
     """
     Sleep
@@ -823,28 +885,76 @@ class API:
       https://dev.fitbit.com/build/reference/web-api/sleep/
     """
     def delete_sleep_log(self, log_id: str):
-        return self.__delete(f"/1.2/user/{self.user_id}/sleep/{log_id}.json")
+      """
+      Deletes a user's sleep log entry with the given ID.
+
+      Parameters:
+        log_id: The ID of the sleep log to be deleted.
+      """
+      return self.__delete(f"/1.2/user/{self.user_id}/sleep/{log_id}.json")
 
     def sleep_log(self, date: str):
-        return self.__get(f"/1.2/user/{self.user_id}/sleep/date/{date}.json")
+      """
+      The Get Sleep Logs by Date endpoint returns a summary and list of a user's sleep 
+      log entries (including naps) as well as detailed sleep entry data for a given day.
+
+      Parameters:
+        date: The date of records to be returned. In the format yyyy-MM-dd.
+      """
+      return self.__get(f"/1.2/user/{self.user_id}/sleep/date/{date}.json")
 
     def sleep_logs_range(self, base_date: str, end_date: str):
-        return self.__get(f"/1.2/user/{self.user_id}/date/{base_date}/{end_date}.json")
+      """
+      The Get Sleep Logs by Date Range endpoint returns a list of a user's sleep log entries 
+      (including naps) as well as detailed sleep entry data for a given date range 
+      (inclusive of start and end dates).
+
+      Parameters:
+        base_date: The date of records to be returned. In the format yyyy-MM-dd.
+        end_date: The date of records to be returned. In the format yyyy-MM-dd.
+      """
+      return self.__get(f"/1.2/user/{self.user_id}/date/{base_date}/{end_date}.json")
 
     def sleep_logs_list(self, date: str, date_type: str, sort: str, offset: int, limit: int):
-        return self.__get(f"/1.2/user/{self.user_id}/sleep/list.json",
-            params={f"{date_type}Date": date, "sort": sort, "offset": offset, "limit": limit})
+      """
+      The Get Sleep Logs List endpoint returns a list of a user's sleep logs (including naps) 
+      before or after a given day with offset, limit, and sort order.
+
+      Parameters:
+        date: The before or after date (type specified in the date_type parameter)
+        date_type: before or after
+        sort: The sort order of entries by date asc (ascending) or desc (descending).
+        offset: The offset number of entries.
+        limit: The maximum number of entries returned (maximum;100).
+      """
+      return self.__get(f"/1.2/user/{self.user_id}/sleep/list.json",
+        params={f"{date_type}Date": date, "sort": sort, "offset": offset, "limit": limit})
 
     def sleep_goal(self):
-        return self.__get(f"/1.2/user/{self.user_id}/sleep/goal.json")
+      """Returns the user's sleep goal."""
+      return self.__get(f"/1.2/user/{self.user_id}/sleep/goal.json")
 
     def update_sleep_goal(self, min_duration: str):
-        return self.__post(f"/1.2/user/{self.user_id}/sleep/goal.json",
-            params={"minDuration": min_duration})
+      """
+      Create or update the user's sleep goal and get a response in the JSON format.
+
+      Parameters:
+        min_duration: Duration of sleep goal.
+      """
+      return self.__post(f"/1.2/user/{self.user_id}/sleep/goal.json",
+        params={"minDuration": min_duration})
 
     def log_sleep(self, start_time: str, duration: int, date: str):
-        return self.__post(f"/1.2/user/{self.user_id}/sleep.json",
-            params={"startTime": start_time, "duration": duration, "date": date})
+      """
+      Creates a log entry for a sleep event and returns a response in the format requested.
+
+      Parameters: 
+        start_time: Start time includes hours and minutes in the format HH:mm.
+        duration: Duration in milliseconds.
+        date: Log entry in the format yyyy-MM-dd.
+      """
+      return self.__post(f"/1.2/user/{self.user_id}/sleep.json",
+        params={"startTime": start_time, "duration": duration, "date": date})
 
     """
     Subscriptions
@@ -853,13 +963,42 @@ class API:
       https://dev.fitbit.com/build/reference/web-api/subscriptions/
     """
     def subscriptions(self, collection_path: str):
-        return self.__get(f"/1/user/{self.user_id}/{collection_path}/apiSubscriptions.json")
+      """
+      Retreives a list of a user's subscriptions for your application in the format requested. 
+      You can either fetch subscriptions for a specific collection or the entire list of 
+      subscriptions for the user. For best practice, make sure that your application maintains 
+      this list on your side and use this endpoint only to periodically ensure data consistency.
+
+      Parameters:
+        collection_path: This is the resource of the collection to receive notifications from (foods, 
+          activities, sleep, or body). If not present, subscription will be created for all collections. 
+          If you have both all and specific collection subscriptions, you will get duplicate notifications 
+          on that collections' updates. Each subscriber can have only one subscription for a specific 
+          user's collection.
+      """
+      return self.__get(f"/1/user/{self.user_id}/{collection_path}/apiSubscriptions.json")
 
     def add_subscription(self, collection_path: str, subscription_id: str):
-        return self.__post(f"/1/user/{self.user_id}/{collection_path}/apiSubscriptions/{subscription_id}.json")
+      """
+      Adds a subscription in your application so that users can get notifications 
+      and return a response in the format requested. The subscription-id value 
+      provides a way to associate an update with a particular user stream in your application.
+
+      Parameter:
+        collection_path: This is the resource of the collection to receive notifications from 
+          (foods, activities, sleep, or body). If not present, subscription will be created for 
+          all collections. If you have both all and specific collection subscriptions, you will 
+          get duplicate notifications on that collections' updates. Each subscriber can have only 
+          one subscription for a specific user's collection.
+        subscription_id: This is the unique ID of the subscription created by the API client 
+          application. Each ID must be unique across the entire set of subscribers and collections. 
+          The Fitbit servers will pass this ID back along with any notifications about the user 
+          indicated by the user parameter in the URL path.
+      """
+      return self.__post(f"/1/user/{self.user_id}/{collection_path}/apiSubscriptions/{subscription_id}.json")
 
     def delete_subscription(self, collection_path: str, subscription_id: str):
-        return self.__delete(f"/1/user/{self.user_id}/{collection_path}/apiSubscriptions/{subscription_id}.json")
+      return self.__delete(f"/1/user/{self.user_id}/{collection_path}/apiSubscriptions/{subscription_id}.json")
 
     """
     User
@@ -868,11 +1007,26 @@ class API:
       https://dev.fitbit.com/build/reference/web-api/user/
     """
     def badges(self):
-        return self.__get(f"/1/user/{self.user_id}/badges.json")
+      """
+      This is the unique ID of the subscription created by the API client application. 
+      Each ID must be unique across the entire set of subscribers and collections. The 
+      Fitbit servers will pass this ID back along with any notifications about the user 
+      indicated by the user parameter in the URL path.
+      """
+      return self.__get(f"/1/user/{self.user_id}/badges.json")
 
     def profile(self):
-        return self.__get(f"/1/user/{self.user_id}/profile.json")
+      """
+      Returns a user's profile. The authenticated owner receives all values. 
+      However, the authenticated user's access to other users' data is subject 
+      to those users' privacy settings. Numerical values are returned in the 
+      unit system specified in the Accept-Language header.
+      """
+      return self.__get(f"/1/user/{self.user_id}/profile.json")
 
     def update_profile(self, params):
-        return self.__post(f"/1/user/{self.user_id}/profile.json",
-            params=params)
+      """
+      TODO
+      """
+      return self.__post(f"/1/user/{self.user_id}/profile.json",
+        params=params)
