@@ -70,50 +70,62 @@ class FitbitTestMethods(unittest.TestCase):
         self.res = api.activity_time_series("calories", "2021-09-01", "7d")
 
     """Auth"""
-    # def test_access_token(self):
-    #     pass
-
-    # def test_introspect(self):
-    #     pass
+    def test_access_token(self):
+        token = api.access_token
+        self.res = api.get_access_token("refresh")
+        self.assertNotEqual(token, api.access_token)
 
     """Body and Weight"""
-    def test_body_logs(self):
-        pass
+    def test_body_weight_logs(self):
+        self.res = api.body_logs("weight", "2021-09-08")
 
-    def test_log_body(self):
-        pass
+    def test_body_fat_logs(self):
+        self.res = api.body_logs("fat", "2021-09-01", "7d")
 
-    def test_delete_body_log(self):
-        pass
+    def test_log_body_weight(self):
+        self.res = api.log_body("weight", 170.00, "2017-09-08", "12:30:01")
+        self.body_weight_log_id = self.res.json()["weightLog"]["logId"]
 
-    def body_goals(self):
-        pass
+    def test_log_body_fat(self):
+        self.res = api.log_body("fat", 20.5, "2017-09-08", "12:30:01")
+        self.body_fat_log_id = self.res.json()["fatLog"]["logId"]
+
+    def test_delete_body_weight_log(self):
+        self.res = api.delete_body_log("weight", self.body_weight_log_id)
+
+    def test_delete_body_fat_log(self):
+        self.res = api.delete_body_log("fat", self.body_fat_log_id)
+
+    def test_body_goals(self):
+        self.res = api.body_goals("weight")
 
     def test_update_body_fat_goal(self):
-        pass
+        self.res = api.update_body_fat_goal(16.00)
 
     def test_update_body_weight_goal(self):
-        pass
+        self.res = api.update_body_weight_goal("2017-01-01", 210.0, 160.0)
 
     """Body and Weight Time Series"""
     def test_body_time_series(self):
-        pass
+        self.res = api.body_time_series("bmi", "2021-09-01", "1m")
 
     """Devices"""
     def test_devices(self):
-        pass
+        self.res = api.devices()
+        self.tracker_id = self.res.json()[0]['id']
 
     def test_alarms(self):
-        pass
+        self.res = api.alarms(self.tracker_id)
 
     def test_add_alarm(self):
-        pass
+        self.res = api.add_alarm(self.tracker_id, "11:30-05:00", False, False, "MONDAY")
+        self.alarm_id = self.res.json()["trackerAlarm"]["alarmId"]
 
     def test_update_alarm(self):
-        pass
+        self.res = api.update_alarm(self.tracker_id, self.alarm_id, "11:00-05:00", False, False, "TUESDAY", 15, 15)
 
     def test_delete_alarm(self):
-        pass
+        api.delete_alarm(self.tracker_id, self.alarm_id)
 
     """Food and Water"""
     def test_food_locales(self):

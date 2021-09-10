@@ -35,73 +35,103 @@ class API:
   def __init__(self, *, debug=False):
     self.debug = debug
     self.client = API.encoded_client()
-    API.copy_auth_url()
-    self.authenticate(input("Auth code: "))
-      
-  def authenticate(self, auth_code: str) -> None:
-    """
-    Uses an auth_code to authenticate the user, storing the user_id, access_token,
-    and refresh_token in self.user_id, self.access_token, and self.refresh_token
-    """
-    res = requests.post(API.token_url, 
-        params={
-            "code": auth_code, "grant_type": "authorization_code", 
-            "client_id": Fitbit.client_id, "redirect_uri": Fitbit.redirect_uri}, 
-        headers={
-            "Authorization": f"Basic {self.client}", 
-            "Content-Type": "application/x-www-form-urlencoded"})
+    self.get_access_token("auth")
+
+  def __set_user_and_tokens(self, res) -> None:
     assert res.status_code == 200
-    data = json.loads(res.text)
+    data = res.json()
     self.user_id = data["user_id"]
     self.access_token = data["access_token"]
     self.refresh_token = data["refresh_token"]
       
-  def __request(self, http_method, url: str, *, params: dict = {}, is_json: bool = True) -> dict:
+  def authenticate(self, auth_code: str) -> dict:
+    """
+    Uses an auth_code to authenticate the user and stores instance info in
+    self.user_id, self.access_token, and self.refresh_token
+    """
+    res = requests.post(API.token_url, 
+      params={
+        "code": auth_code, "grant_type": "authorization_code", 
+        "client_id": Fitbit.client_id, "redirect_uri": Fitbit.redirect_uri}, 
+      headers={
+        "Authorization": f"Basic {self.client}", 
+        "Content-Type": "application/x-www-form-urlencoded"})
+    self.__set_user_and_tokens(res)
+    if self.debug:
+      return res
+    return res.json()
+
+  def refresh(self) -> dict:
+    """Uses a refresh_token and sets instance info with a new access_token and refresh_token"""
+    res = requests.post(API.token_url,
+      params={
+        "grant_type": "refresh_token", "refresh_token": self.refresh_token},
+      headers={
+        "Authorization": f"Basic {self.client}", 
+        "Content-Type": "application/x-www-form-urlencoded"})
+    self.__set_user_and_tokens(res)
+    if self.debug:
+      return res
+    return res.json()
+      
+  def __request(self, http_method, url: str, *, params: dict = {}, headers: dict = {}, data: dict = {}, is_json: bool = True) -> dict:
     """
     Sends a request to the API base url using the specified method
 
     Parameters:
       http_method: requests.get, requests.post, requests.delete
       url: The location of the API endpoint
-      params: A dictionary of query parameters
+      params: (optional) A dictionary of query parameters
+      headers: (optional) A dictionary of header parameters
+      data: (optional) A dictionary of form data (payload) parameters
+      is_json: (optional) Whether the response is json data or not
     """
     headers = { "Authorization": f"Bearer {self.access_token}" }
-    res = http_method(f"{API.base_url}{url}",headers=headers,params=params)
+    res = http_method(f"{API.base_url}{url}",headers=headers,params=params,data=data)
     if self.debug: 
       return res
     if is_json:
       return res.json()
     return res.text
   
-  def __get(self, url: str, *, params: dict = {}, is_json: bool = True) -> dict:
+  def __get(self, url: str, *, params: dict = {}, headers: dict = {}, data: dict = {}, is_json: bool = True) -> dict:
     """
     Sends a GET request to the API base url
 
     Parameters:
       url: The location of the API endpoint
-      params: A dictionary of query parameters
+      params: (optional) A dictionary of query parameters
+      headers: (optional) A dictionary of header parameters
+      data: (optional) A dictionary of form data (payload) parameters
+      is_json: (optional) Whether the response is json data or not
     """
-    return self.__request(requests.get, url, params=params, is_json=is_json)
+    return self.__request(requests.get, url, params=params, headers=headers, data=data, is_json=is_json)
   
-  def __post(self, url: str, *, params: dict = {}, is_json: bool = True) -> dict:
+  def __post(self, url: str, *, params: dict = {}, headers: dict = {}, data: dict = {}, is_json: bool = True) -> dict:
     """
     Sends a POST request to the API base url
 
     Parameters:
       url: The location of the API endpoint
-      params: A dictionary of query parameters
+      params: (optional) A dictionary of query parameters
+      headers: (optional) A dictionary of header parameters
+      data: (optional) A dictionary of form data (payload) parameters
+      is_json: (optional) Whether the response is json data or not
     """
-    return self.__request(requests.post, url, params=params, is_json=is_json)
+    return self.__request(requests.post, url, params=params, headers=headers, data=data, is_json=is_json)
   
-  def __delete(self, url: str, *, params: dict = {}, is_json: bool = True) -> dict:
+  def __delete(self, url: str, *, params: dict = {}, headers: dict = {}, data: dict = {}, is_json: bool = True) -> dict:
     """
     Sends a DELETE request to the API base url
 
     Parameters:
       url: The location of the API endpoint
-      params: A dictionary of query parameters
+      params: (optional) A dictionary of query parameters
+      headers: (optional) A dictionary of header parameters
+      data: (optional) A dictionary of form data (payload) parameters
+      is_json: (optional) Whether the response is json data or not
     """
-    return self.__request(requests.delete, url, params=params, is_json=is_json)
+    return self.__request(requests.delete, url, params=params, headers=headers, data=data, is_json=is_json)
 
   """
   Activity
@@ -287,17 +317,17 @@ class API:
   """
   
   def activity_time_series(self, resource_path: str, base_date: str, end_or_period: str, use_tracker: bool = False):
-      """
-      Returns activities time series data in the specified range for a given resource.
+    """
+    Returns activities time series data in the specified range for a given resource.
 
-      Parameters:
-        resource_path: calories, caloriesBMR, steps, distance, floors, elevation, minutesSedentary, minutesLightlyActive, minutesFairlyActive, minutesVeryActive, or activityCalories
-        base_date: If an end date is provided, base_date refers to the start date. If a period is provided instead, base_date will be the last date of that period. Format yyyy-MM-dd
-        end_or_period: A date in the format yyyy-MM-dd or one of the following periods: 1d, 7d, 30d, 1w, 1m, 3m, 6m, 1y, or max
-        use_tracker: (optional) If true, only tracker data is returned
-      """
-      tracker = "tracker/" if use_tracker else ""
-      return self.__get(f"/1/user/{self.user_id}/activities/{tracker}/{resource_path}/date/{base_date}/{end_or_period}.json")
+    Parameters:
+      resource_path: calories, caloriesBMR, steps, distance, floors, elevation, minutesSedentary, minutesLightlyActive, minutesFairlyActive, minutesVeryActive, or activityCalories
+      base_date: If an end date is provided, base_date refers to the start date. If a period is provided instead, base_date will be the last date of that period. Format yyyy-MM-dd
+      end_or_period: A date in the format yyyy-MM-dd or one of the following periods: 1d, 7d, 30d, 1w, 1m, 3m, 6m, 1y, or max
+      use_tracker: (optional) If true, only tracker data is returned
+    """
+    tracker = "tracker/" if use_tracker else ""
+    return self.__get(f"/1/user/{self.user_id}/activities/{tracker}/{resource_path}/date/{base_date}/{end_or_period}.json")
   
   """
   Auth
@@ -305,13 +335,20 @@ class API:
   Full documentation: 
     https://dev.fitbit.com/build/reference/web-api/oauth2/
   """
-  def access_token(self, params):
-      #TODO
-      return self.__post("/ouath2/token", params)
-  
-  def introspect(self):
-      #TODO
-      pass
+  def get_access_token(self, type: str) -> str:
+    """
+    Authenticates the user and stores the user_id, access_token, and refresh_token in the fitbit.API instance. Use
+    a type of "auth" to authenticate a user, and a type of "refresh" to use an existing refresh token
+
+    Parameters:
+      type: auth or refresh
+    """
+    if type == "auth":
+      API.copy_auth_url()
+      self.authenticate(input("Auth code: "))
+    else:
+      self.refresh()
+    return self.access_token
   
   """
   Body and Weight
@@ -319,80 +356,75 @@ class API:
   Full documentation: 
     https://dev.fitbit.com/build/reference/web-api/body/
   """
-  def body_logs(self, resource_path: str, base_date: str, end_or_period: str = None):
-      """
-      Retreives a list of all user's weight or body fat log entries for a given day in the format requested.
+  def body_logs(self, resource_path: str, base_date: str, end_or_period: Union[str, None] = None):
+    """
+    Retreives a list of all user's weight or body fat log entries for a given day in the format requested.
 
-      Parameters:
-        resource_path: weight or fat
-        base_date: If an end date is provided, base_date refers to the start date. If a period is
-          provided instead, base_date will be the last date of that period. If neither is provided,
-          a single log for the day specified is returned
-        end_or_period: (optional) A date in the format yyyy-MM-dd or one of the following periods:
-          1d, 7d, 30d, 1w, 1m, 3m, 6m, 1y, or max
-      """
-      if end_or_period is not None:
-          end = f"/{end_or_period}"
-      else:
-          end = ""
-      return self.__get(f"/1/user/{self.user_id}/body/log/{resource_path}/date/{base_date}{end}.json")
+    Parameters:
+      resource_path: weight or fat
+      base_date: If an end date is provided, base_date refers to the start date. If a period is provided instead, base_date will be the last date of that period. If neither is provided, a single log for the day specified is returned. Format yyyy-MM-dd
+      end_or_period: (optional) A date in the format yyyy-MM-dd or one of the following periods: 1d, 7d, 30d, 1w, 1m, 3m, 6m, 1y, or max
+    """
+    if end_or_period is not None:
+      end = f"/{end_or_period}"
+    else:
+      end = ""
+    return self.__get(f"/1/user/{self.user_id}/body/log/{resource_path}/date/{base_date}{end}.json")
   
-  def log_body(self, resource_path: str, measurement: str, date: str, time: str):
-      """
-      Creates a log entry for weight or body fat and returns a response in the format requested
+  def log_body(self, resource_path: str, measurement: float, date: str, time: str):
+    """
+    Creates a log entry for weight or body fat and returns a response in the format requested
 
-      Parameters:
-        resource_path: weight or fat
-        measurement: the measurement to record
-        date: Log entry date in the format yyyy-MM-dd.
-        time: Log entry time in the format HH:mm:ss.
-      """
-      return self.__post(f"/1/user/{self.user_id}/body/log/{resource_path}.json",
-          params={resource_path: measurement, "date": date, "time": time})
+    Parameters:
+      resource_path: weight or fat
+      measurement: the measurement to record
+      date: Log entry date in the format yyyy-MM-dd.
+      time: Log entry time in the format HH:mm:ss.
+    """
+    return self.__post(f"/1/user/{self.user_id}/body/log/{resource_path}.json",
+      params={resource_path: measurement, "date": date, "time": time})
   
   def delete_body_log(self, resource_path: str, body_log_id: int):
-      """
-      Deletes a user's weight or body fat log entry with the given ID.
+    """
+    Deletes a user's weight or body fat log entry with the given ID.
 
-      Parameters:
-        resource_path: weight or fat
-        body_log_id: The id of the weight or body fat log entry
-      """
-      return self.__delete(f"/1/user/{self.user_id}/body/log/{resource_path}/{body_log_id}.json")
+    Parameters:
+      resource_path: weight or fat
+      body_log_id: The id of the weight or body fat log entry
+    """
+    return self.__delete(f"/1/user/{self.user_id}/body/log/{resource_path}/{body_log_id}.json")
   
   def body_goals(self, goal_type: str):
-      """
-      Retreives a user's current body fat percentage or weight goal using units in the unit systems that 
-      corresponds to the Accept-Language header providedin the format requested.
+    """
+    Retreives a user's current body fat percentage or weight goal using units in the unit systems that 
+    corresponds to the Accept-Language header providedin the format requested.
 
-      Parameters:
-        goal_type: weight or fat
-      """
-      return self.__get(f"/1/user/{self.user_id}/body/log/{goal_type}/goal.json")
+    Parameters:
+      goal_type: weight or fat
+    """
+    return self.__get(f"/1/user/{self.user_id}/body/log/{goal_type}/goal.json")
   
-  def update_body_fat_goal(self, fat: str):
-      """
-      Updates user's fat percentage goal.
+  def update_body_fat_goal(self, fat: float):
+    """
+    Updates user's fat percentage goal.
 
-      Parameters:
-        fat: Target body fat percentage; in the format X.XX
-      """
-      return self.__post(f"/1/user/{self.user_id}/body/log/fat/goal.json",
-          params={"fat": fat})
+    Parameters:
+      fat: Target body fat percentage; in the format X.XX
+    """
+    return self.__post(f"/1/user/{self.user_id}/body/log/fat/goal.json",
+      params={"fat": fat})
 
-  def update_body_weight_goal(self, start_date: str, start_weight: str, weight: str):
-      """
-      Updates user's fat percentage goal.
+  def update_body_weight_goal(self, start_date: str, start_weight: float, weight: float):
+    """
+    Updates user's fat percentage goal.
 
-      Parameters:
-        start_date: Weight goal start date; in the format yyyy-MM-dd.
-        start_weight: Weight goal start weight; in the format X.XX, in the unit systems that 
-          corresponds to the Accept-Language header provided.
-        weight: Weight goal target weight; in the format X.XX, in the unit systems that corresponds to the 
-          Accept-Language header provided; required if user doesn't have an existing weight goal.
-      """
-      return self.__post(f"/1/user/{self.user_id}/body/log/weight/goal.json",
-          params={"startDate": start_date, "startWeight": start_weight, "weight": weight})
+    Parameters:
+      start_date: Weight goal start date; in the format yyyy-MM-dd.
+      start_weight: Weight goal start weight; in the format X.XX, in the unit systems that corresponds to the Accept-Language header provided.
+      weight: Weight goal target weight; in the format X.XX, in the unit systems that corresponds to the Accept-Language header provided; required if user doesn't have an existing weight goal.
+    """
+    return self.__post(f"/1/user/{self.user_id}/body/log/weight/goal.json",
+      params={"startDate": start_date, "startWeight": start_weight, "weight": weight})
   
   """
   Body and Weight Time Series
@@ -407,10 +439,8 @@ class API:
 
       Parameters:
         resource_path: bmi, fat, or weight
-        base_date: If an end date is provided, base_date refers to the start date. If a period is
-          provided instead, base_date will be the last date of that period.
-        end_or_period: (optional) A date in the format yyyy-MM-dd or one of the following periods:
-          1d, 7d, 30d, 1w, 1m, 3m, 6m, 1y, or max
+        base_date: If an end date is provided, base_date refers to the start date. If a period is provided instead, base_date will be the last date of that period.
+        end_or_period: (optional) A date in the format yyyy-MM-dd or one of the following periods: 1d, 7d, 30d, 1w, 1m, 3m, 6m, 1y, or max
       """
       return self.__get(f"/1/user/{self.user_id}/body/{resource_path}/date/{base_date}/{end_or_period}.json")
   
@@ -433,7 +463,7 @@ class API:
       """
       return self.__get(f"/1/user/{self.user_id}/devices/tracker/{tracker_id}/alarms.json")
   
-  def add_alarm(self, tracker_id: int, time: str, enabled: bool, recurring: str, week_days: str):
+  def add_alarm(self, tracker_id: int, time: str, enabled: bool, recurring: bool, week_days: str):
       """
       Adds the alarm settings to a given ID for a given device.
 
@@ -441,13 +471,13 @@ class API:
         tracker_id: The ID of the tracker for which data is returned. The tracker-id value is found via the Get Devices endpoint.
         time: Time of day that the alarm vibrates with a UTC timezone offset, e.g. 07:15-08:00.
         enabled: True or False. If False, alarm does not vibrate until enabled is set to True.
-        recurring: true or false. If false, the alarm is a single event.
+        recurring: True or False. If False, the alarm is a single event.
         week_days: Comma separated list of days of the week on which the alarm vibrates, e.g. MONDAY, TUESDAY.
       """
       return self.__post(f"/1/user/{self.user_id}/devices/tracker/{tracker_id}/alarms.json",
           params={"time": time, "enabled": enabled, "recurring": recurring, "weekDays": week_days})
   
-  def update_alarm(self, tracker_id: int, alarm_id: int, time: str, enabled: bool, recurring: str, week_days: str, snooze_length: int, snooze_count: int):
+  def update_alarm(self, tracker_id: int, alarm_id: int, time: str, enabled: bool, recurring: bool, week_days: str, snooze_length: int, snooze_count: int):
       """
       Updates the alarm entry with a given ID for a given device. It also gets a response in the format requested.
 
@@ -467,7 +497,7 @@ class API:
               "snoozeLength": snooze_length, "snoozeCount": snooze_count
           })
   
-  def delete_alarm(self, tracker_id: int, alarm_id: int):
+  def delete_alarm(self, tracker_id: int, alarm_id: int) -> None:
       """
       Deletes the user's device alarm entry with the given ID for a given device.
 
@@ -475,7 +505,7 @@ class API:
         tracker_id: The ID of the tracker for which data is returned. The tracker-id value is found via the Get Devices endpoint.
         alarm_id: The ID of the alarm to be updated. The alarm-id value is found in the response of the Get Activity endpoint.
       """
-      return self.__delete(f"/1/user/{self.user_id}/devices/tracker/{tracker_id}/alarms/{alarm_id}.json")
+      return self.__delete(f"/1/user/{self.user_id}/devices/tracker/{tracker_id}/alarms/{alarm_id}.json", is_json=False)
   
   """
   Food and Water
